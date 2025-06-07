@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background-color: #f4f6f8;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .chart-spacing {
+            margin-top: 40px;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+    <title>Rankings</title>
+</head>
+
+<body>
+    <h2>Dashboard Ranking</h2>
+    <canvas id="ranking_chart" width="400" height="200"></canvas>
+    <h2>Daywise Toppers</h2>
+    <div id="chart_div" class="chart-spacing"
+        style="width: 100%; max-width: 900px; margin: auto; height: 500px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); background: #fff; border-radius: 8px; padding: 20px;">
+    </div>
+
+    <script>
+        const sheetId = '1aMmBVxpql5PJ1X01syRnOUyk7mhC4QFHS79RXwsHNWs';
+        const gids = {
+            tab1: '0',
+            tab2: '739948519'
+        };
+
+        const nameList = [
+            ['pratiksabale.ps@gmail.com', 'Pratik'],
+            ["sakshamsalunkhe2021@gmail.com", "Saksham"],
+            ["arunasalunkhe2012@gmail.com", "Aruna"],
+            ["sheetalingale90.si@gmail.com", "Sheetal"],
+            ["maheshsalunkhe.cssl@gmail.com", "Mahesh"],
+            ["aryansabale403@gmail.com", "Aryan"],
+            ["gauridisale.gd@gmail.com", "Gauri"],
+            ["sanikadisale123@gmail.com", "Sanika"],
+            ["manishasabale1771980@gmail.com", "Manisha"],
+            ["mayadisale410@gmail.com", "Maya"],
+            ["parassabale.sp@gmail.com", "Paras"],
+            ["pratiksabale2001@gmail.com", "Tanaji"]
+        ];
+
+        const emailToName = new Map(nameList);
+        const barColors = [
+            "#4dc9f6", "#f67019", "#f53794", "#537bc4", "#acc236", "#166a8f",
+            "#ffcd56", "#36a2eb", "#9966ff", "#ff6384"
+        ];
+
+        const fetchTab = (gid) => {
+            const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&gid=${gid}`;
+            return fetch(url)
+                .then(res => res.text())
+                .then(text => {
+                    const json = JSON.parse(text.substr(47).slice(0, -2));
+                    const data = json.table.rows.map(row =>
+                        row?.c?.map(cell => cell?.v) || []
+                    );
+                    return data.filter(row => row.length > 0);
+                });
+        };
+
+        Promise.all([fetchTab(gids.tab1), fetchTab(gids.tab2)])
+            .then(([tab1Data, tab2Data]) => {
+                renderRankings(tab1Data);
+                google.charts.load('current', { packages: ['corechart'] });
+                google.charts.setOnLoadCallback(() => drawChart(tab2Data));
+                console.log('📄 Tab 1 Data:', tab1Data);
+                console.log('📄 Tab 2 Data:', tab2Data);
+            })
+            .catch(err => console.error('❌ Error fetching data:', err));
+
+
+        function renderRankings(data) {
+            const names = data.map(item => emailToName.get(item[0]) || item[0]);
+            const points = data.map(item => item[1]);
+
+            const ctx = document.getElementById('ranking_chart').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: names,
+                    datasets: [{
+                        label: 'Points',
+                        data: points,
+                        backgroundColor: barColors.slice(0, names.length),
+                        borderRadius: 10,
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: '#333',
+                            titleColor: '#fff',
+                            bodyColor: '#fff',
+                            borderColor: '#777',
+                            borderWidth: 1
+                        }
+                    },
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: '#e0e0e0' },
+                            ticks: { stepSize: 10 }
+                        }
+                    }
+                }
+            });
+        }
+
+        function parseGoogleDate(dateStr) {
+            const match = dateStr?.match?.(/Date\((\d+),(\d+),(\d+)\)/);
+            if (match) {
+                const [_, year, month, day] = match.map(Number);
+                return new Date(year, month, day - 1);
+            }
+            const parsed = new Date(dateStr);
+            return isNaN(parsed) ? new Date() : parsed;
+        }
+
+        function drawChart(data) {
+            data = data.map(inner =>
+                inner.filter(value => value !== null && value !== undefined)
+            );
+            const sorted = [...data].sort((a, b) => new Date(a[0]) - new Date(b[0])); // Oldest to Newest
+
+            const chartData = [['Date', 'Points', { role: 'style' }, { role: 'annotation' }]];
+            sorted.forEach(([dateStr, email, points], i) => {
+                if (!dateStr || !email || points === undefined || points === null) return;
+                const names = data.map(item => emailToName.get(item[0]) || item[0]);
+                const name = emailToName.get(email) || email;
+                const color = barColors[i % barColors.length];
+                const dateObj = parseGoogleDate(dateStr);
+
+                // Label with date and weekday
+                const label = `${dateObj.toISOString().split('T')[0]} (${dateObj.toLocaleDateString('en-US', { weekday: 'short' })})`;
+
+                chartData.push([label, points, `color: ${color}; stroke-color: #fff; stroke-width: 2`, name]);
+            });
+
+            // Reverse the chartData (excluding header row)
+            const header = chartData[0];
+            const body = chartData.slice(1).reverse();
+            const reversedData = [header, ...body];
+
+            const dataTable = google.visualization.arrayToDataTable(reversedData);
+
+            const options = {
+                backgroundColor: '#f9f9f9',
+                chartArea: {
+                    left: 60,
+                    top: 60,
+                    width: '85%',
+                    height: '70%'
+                },
+                hAxis: {
+                    title: 'Date',
+                    titleTextStyle: { color: '#555', bold: true },
+                    textStyle: { fontSize: 12, color: '#333' },
+                    slantedText: false
+                },
+                vAxis: {
+                    title: 'Points',
+                    titleTextStyle: { color: '#555', bold: true },
+                    textStyle: { fontSize: 12, color: '#333' },
+                    gridlines: { color: '#e0e0e0' },
+                    minValue: 0
+                },
+                annotations: {
+                    textStyle: {
+                        fontSize: 13,
+                        color: '#000',
+                        auraColor: 'none',
+                        bold: true
+                    }
+                },
+                bar: { groupWidth: '60%' },
+                legend: 'none'
+            };
+
+            const chart = new google.visualization.ColumnChart(document.getElementById('chart_div'));
+            chart.draw(dataTable, options);
+        }
+    </script>
+</body>
+
+</html>
