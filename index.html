@@ -124,7 +124,7 @@
             const match = dateStr?.match?.(/Date\((\d+),(\d+),(\d+)\)/);
             if (match) {
                 const [_, year, month, day] = match.map(Number);
-                return new Date(year, month, day - 1);
+                return new Date(year, month, day);
             }
             const parsed = new Date(dateStr);
             return isNaN(parsed) ? new Date() : parsed;
@@ -142,10 +142,14 @@
                 const names = data.map(item => emailToName.get(item[0]) || item[0]);
                 const name = emailToName.get(email) || email;
                 const color = barColors[i % barColors.length];
-                const dateObj = parseGoogleDate(dateStr);
 
-                // Label with date and weekday
-                const label = `${dateObj.toISOString().split('T')[0]} (${dateObj.toLocaleDateString('en-US', { weekday: 'short' })})`;
+                const dateObj = parseGoogleDate(dateStr);
+                const day = dateObj.getDate();
+                const month = dateObj.toLocaleString('en-US', { month: 'short' });
+                const year = dateObj.getFullYear();
+                const weekday = dateObj.toLocaleString('en-US', { weekday: 'short' });
+                const label = `${day}/${month}/${year} (${weekday})`;
+
 
                 chartData.push([label, points, `color: ${color}; stroke-color: #fff; stroke-width: 2`, name]);
             });
